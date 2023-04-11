@@ -7,8 +7,8 @@ import {
   overrideParseStoresSpec,
   selectTableScenario,
 } from './utils/utils';
-import { encryptObject } from 'dexie-easy-encrypt/utils/encrypt-object';
-import { decryptObject } from 'dexie-easy-encrypt/utils/decrypt-object';
+import { encryptObject } from './utils/encrypt-object';
+import { decryptObject } from './utils/decrypt-object';
 
 const Promise = Dexie.Promise;
 

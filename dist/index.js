@@ -3,8 +3,6 @@
 function _interopDefault (ex) { return (ex && (typeof ex === 'object') && 'default' in ex) ? ex['default'] : ex; }
 
 var Dexie = _interopDefault(require('dexie'));
-var encryptObject = require('dexie-easy-encrypt/utils/encrypt-object');
-var decryptObject = require('dexie-easy-encrypt/utils/decrypt-object');
 
 const ENCRYPTED_DATA_KEY = '__DATA__';
 const ENCRYPTION_SETTINGS_TABLE = '__ENCRYPTION_SETTINGS__';
@@ -103,6 +101,65 @@ const selectTableScenario = (table, tables, previousTables) => {
   return null;
 };
 
+/**
+ * Handles the transformation of the passed entity into what will actually be stored in the db
+ *
+ * Wipe Keys:
+ * =========
+ * To clean an object (remove its non encrypted (non index/primary-key) fields), we need to use two different
+ * methods depending on writing to the db, or modifying an object.
+ *
+ * - When writing (false), we nullify the key and delete it
+ * - When updating (true) we must set its value to undefined and the Dexie process will remove the key
+ *
+ * @param table
+ * @param entity
+ * @param encryption
+ * @param wipeKeys
+ */
+const encryptObject = (table, entity, encryption, wipeKeys = false) => {
+  const toStore = Object.assign({}, entity);
+
+  const indices = table.schema.indexes.map(index => index.name);
+  Object.keys(entity).forEach(key => {
+    if (key === table.schema.primKey.name || indices.includes(key)) {
+      return;
+    }
+    // creating an object in db
+    if (wipeKeys === false) {
+      entity[key] = null;
+      delete entity[key];
+    }
+    // updating the object in db
+    if (wipeKeys === true) {
+      entity[key] = undefined;
+    }
+  });
+
+  entity[ENCRYPTED_DATA_KEY] = encryption.encrypt(toStore);
+};
+
+/**
+ * Handles the transformation of the db stored value back into the decrypted entity
+ * @param entity
+ * @param encryption
+ * @param wipeKeys
+ * @returns {Promise<*>|PromiseLike<ArrayBuffer>|*}
+ */
+function decryptObject(entity, encryption, wipeKeys = false) {
+  if (entity && entity[ENCRYPTED_DATA_KEY]) {
+    const result = encryption.decrypt(entity[ENCRYPTED_DATA_KEY]);
+    if (wipeKeys === true) {
+      result[ENCRYPTED_DATA_KEY] = undefined;
+    } else {
+      result[ENCRYPTED_DATA_KEY] = null;
+      delete result[ENCRYPTED_DATA_KEY];
+    }
+    return result;
+  }
+  return entity;
+}
+
 const Promise = Dexie.Promise;
 
 /**
@@ -133,7 +190,7 @@ const middleware = ({ db, encryption = null, tables = [] }) => {
               function setupHooks(table, encryption) {
                 console.log('table', table);
                 table.hook('creating', (primKey, obj) => {
-                  encryptObject.encryptObject(table, obj, encryption);
+                  encryptObject(table, obj, encryption);
                 });
                 table.hook('updating', (modifications, primKey, obj) => {
                   // do we have any modifications?
@@ -143,7 +200,7 @@ const middleware = ({ db, encryption = null, tables = [] }) => {
                   }
 
                   // decrypt the original object
-                  const decrypted = decryptObject.decryptObject({ ...obj }, encryption);
+                  const decrypted = decryptObject({ ...obj }, encryption);
 
                   // merge the modifications into the original object
                   const updates = {
@@ -155,12 +212,12 @@ const middleware = ({ db, encryption = null, tables = [] }) => {
                   // wipe keys to undefined instead of deleting from object, which dexie uses to
                   // remove them from the modifications object
 
-                  encryptObject.encryptObject(table, updates, encryption, true);
+                  encryptObject(table, updates, encryption, true);
 
                   return updates;
                 });
                 table.hook('reading', obj => {
-                  decryptObject.decryptObject(obj, encryption);
+                  decryptObject(obj, encryption);
                 });
                 console.log('hooks installed for', table.name);
               }
