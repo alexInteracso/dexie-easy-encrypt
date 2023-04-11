@@ -40,7 +40,7 @@ const middleware = ({ db, encryption = null, tables = [] }) => {
               function setupHooks(table, encryption) {
                 console.log('table', table);
                 table.hook('creating', (primKey, obj) => {
-                  encryptObject(table, obj, encryption);
+                  return encryptObject(table, obj, encryption);
                 });
                 table.hook('updating', (modifications, primKey, obj) => {
                   // do we have any modifications?
@@ -67,7 +67,7 @@ const middleware = ({ db, encryption = null, tables = [] }) => {
                   return updates;
                 });
                 table.hook('reading', obj => {
-                  decryptObject(obj, encryption);
+                  return decryptObject(obj, encryption);
                 });
                 console.log('hooks installed for', table.name);
               }
