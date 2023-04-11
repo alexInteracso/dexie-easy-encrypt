@@ -1,6 +1,6 @@
 {
   "name": "dexie-easy-encrypt",
-  "version": "1.0.0",
+  "version": "0.0.25",
   "description": "Easy, unopinionated, table encryption middleware for Dexie",
   "main": "dist/index.js",
   "files": [
